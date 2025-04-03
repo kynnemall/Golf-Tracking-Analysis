@@ -10,7 +10,7 @@ def load_templates():
     num_templates = {
         n[-5]: cv2.imread(n, cv2.IMREAD_GRAYSCALE) for n in numbers
     }
-    sides = glob.glob('templates/side*')
+    sides = glob.glob('templates/trackman/side*')
     num_templates.update({
         s[-5]: cv2.imread(s, cv2.IMREAD_GRAYSCALE) for s in sides
     })
@@ -177,6 +177,4 @@ class Trackman:
         right.reset_index(drop=True, inplace=True)
 
         combo = pd.concat([left.iloc[:, :4], right], axis=1)
-        self.data = combo.drop_duplicates(
-            subset=['Carry', 'Total', 'Height'], inplace=True
-        )
+        self.df = combo.drop_duplicates(subset=combo.columns[:7])
