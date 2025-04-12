@@ -3,14 +3,14 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
 
-class Starter:
+class Toptracer:
 
     def __init__(self, path='../toptracer_images/*'):
         self.unique_indexes = []
         self.raw_indexes = []
+
         self.load_templates()
         self.image_files = glob.glob(path)
         self.extract_row_indexes()  # gets indexes
@@ -63,11 +63,21 @@ class Starter:
         dfs = [
             pd.DataFrame(dict_, index=[i]) for i, dict_ in self.data.items()
         ]
-        df = pd.concat(dfs).sort_index().dropna(how='all')
+        df = pd.concat(dfs).sort_index()  # .dropna(how='all')
+        df['Hang Time'] /= 10
 
         # fix curve and offline greater than 100 -> error matching "R"
         for col in ('Curve', 'Offline'):
-            df[col] = [n if n < 100 else n - 100 for n in df[col]]
+            newnums = []
+            for value in df[col].values:
+                if value <= 0:
+                    newnums.append(value)
+                elif len(str(value)) > 1:
+                    new_val = int(str(value)[1:])
+                    newnums.append(new_val)
+                else:
+                    print(value)
+            df[col] = newnums
 
         self.df = df.drop_duplicates()
 
@@ -108,10 +118,9 @@ class Starter:
 
     def extract_row_indexes(self):
         """Loop through a list of image paths and extract unique indexes."""
-        for path in tqdm(self.image_files):
-            image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)[325:1500]
-            if image is not None:
-                self.process_image(image)
+        for path in self.image_files:
+            image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)[325:1510]
+            self.process_image(image)
 
         # populate self.data with indexes
         n_indexes = len(self.unique_indexes)
@@ -150,13 +159,13 @@ class Starter:
 
         return filtered
 
-    def find_best_matching_index(self, row_image):
+    def find_best_matching_index(self, row_idx_img):
         best_idx = None
         best_score = 0
         scores = []
         for idx, template in enumerate(self.raw_indexes):
             result = cv2.matchTemplate(
-                row_image, template, cv2.TM_CCOEFF_NORMED
+                row_idx_img, template, cv2.TM_CCOEFF_NORMED
             )
             score = result.max()
             scores.append(score)
@@ -295,11 +304,3 @@ class Starter:
     def analyse_all_screenshots(self):
         for image_path in self.image_files:
             self.process_screenshot(image_path)
-
-
-# Example usage
-start = Starter()
-
-# for n, unique in enumerate(start.unique_indexes, 1):
-#     plt.subplot(6, 6, n)
-#     plt.imshow(unique[-1])
