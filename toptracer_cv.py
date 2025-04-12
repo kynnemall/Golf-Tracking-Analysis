@@ -3,19 +3,30 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from PIL import Image
 
 
 class Toptracer:
+    """
+    Takes a path to screenshots of Toptracer data and processes them
+    using template matching to extract them into a Pandas DataFrame
+    (which is stored as the attribute "df")
+    """
 
-    def __init__(self, path='../toptracer_images/*'):
+    def __init__(self, img_bytes_list):
         self.unique_indexes = []
         self.raw_indexes = []
+        self.image_files = img_bytes_list
 
         self.load_templates()
-        self.image_files = glob.glob(path)
         self.extract_row_indexes()  # gets indexes
         self.analyse_all_screenshots()
         self.format_data()
+
+    def _gray_img_from_bytes(self, bytes_image):
+        gray = Image.open(bytes_image).convert('L')
+        gray = np.array(gray)
+        return gray
 
     def read_and_threshold(self, image_path, threshold=200):
         gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -118,9 +129,9 @@ class Toptracer:
 
     def extract_row_indexes(self):
         """Loop through a list of image paths and extract unique indexes."""
-        for path in self.image_files:
-            image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)[325:1510]
-            self.process_image(image)
+        for bytes_image in self.image_files:
+            gray = self._gray_img_from_bytes(bytes_image)[325:1510]
+            self.process_image(gray)
 
         # populate self.data with indexes
         n_indexes = len(self.unique_indexes)
@@ -225,8 +236,8 @@ class Toptracer:
             detected_numbers, scores=detected_scores, threshold=5, axis='x')
         return final, detected_scores
 
-    def process_screenshot(self, image_path, thresh=0.8, row_height=50, plot=False):
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    def process_screenshot(self, image_bytes, thresh=0.8, row_height=50, plot=False):
+        image = self._gray_img_from_bytes(image_bytes)
         matches = self.find_all_matching_indexes(
             image, threshold=thresh
         )
@@ -302,5 +313,5 @@ class Toptracer:
         return nums
 
     def analyse_all_screenshots(self):
-        for image_path in self.image_files:
-            self.process_screenshot(image_path)
+        for image_bytes in self.image_files:
+            self.process_screenshot(image_bytes)
