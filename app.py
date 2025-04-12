@@ -9,7 +9,8 @@ Created on Sat Apr 12 09:05:00 2025
 import os
 import pandas as pd
 import streamlit as st
-from ui_funcs import combine_data, extract_from_screenshots, offline_analysis
+from ui_funcs import combine_data, extract_from_screenshots, offline_analysis, \
+    speed_vs_launch, most_common_shot
 
 if os.path.exists('data.csv'):
     df = pd.read_csv('data.csv')
@@ -18,7 +19,8 @@ else:
     df = None
     top_ds = None
 
-loader, analysis = st.tabs(['Process Screenshots', 'Analyse Single Club data'])
+loader, single, multi = st.tabs(['Process Screenshots', 'Single Club Analysis',
+                                 'Club Comparisons'])
 
 with loader:
     st.text(
@@ -35,7 +37,7 @@ with loader:
     extract_from_screenshots('Trackman')
 
 
-with analysis:
+with single:
     if df is None:
         st.text(
             """
@@ -51,9 +53,15 @@ with analysis:
         else:
             club = st.selectbox('Select a club', club_options)
         offline_analysis(df, top_ds, club)
+        speed_vs_launch(df, club)
 
-    # graph of distance vs side, vertical patches for side (good, ok, bad)
-    # also show percentages for above
-
-    # ball speed and launch angle
-    # combo of these should give distance but other factors may impact it
+with multi:
+    if df is None:
+        st.text(
+            """
+            No dataset in memory. Please upload 
+            screenshots or a data file to proceed"""
+        )
+    else:
+        st.text('Detected uploaded data')
+        most_common_shot(df)

@@ -7,12 +7,13 @@ Created on Sat Apr 12 15:04:21 2025
 """
 
 import os
+import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime
 from toptracer_cv import Toptracer
+from sklearn.metrics import pairwise_distances
 
 
 def combine_data(source='Toptracer'):
@@ -108,3 +109,37 @@ def offline_analysis(df, toptracer, club=None):
 
     with st.expander(f'{side_col.title()} Analysis'):
         st.plotly_chart(fig)
+
+
+def speed_vs_launch(df, club=None):
+    # subset for the specific club
+    multiple_clubs = df['Club'].nunique() > 1
+    if multiple_clubs and club is not None:
+        sub = df[df['Club'] == club]
+    else:
+        club = df['Club'].values[0]
+        sub = df[df['Club'] == club]
+
+    fig = px.scatter(sub, x='Launch Angle', y='Ball Speed')
+
+    with st.expander('Launch Angle vs Ball Speed'):
+        st.plotly_chart(fig)
+
+
+def get_medoid(group_df):
+    features = group_df.iloc[:, :-2].to_numpy()
+    dists = pairwise_distances(features)
+    medoid_idx = np.argmin(dists.sum(axis=0))
+    result = group_df.iloc[medoid_idx]
+    result.name = ''
+    return result
+
+
+def most_common_shot(df):
+    medoids = df.groupby(['Club', 'Date']).apply(
+        get_medoid).reset_index(drop=True)
+    order = df.columns[-2:].tolist() + df.columns[:-2].tolist()
+    medoids = medoids[order].sort_values(['Club', 'Date'])
+
+    with st.expander('Most Representative Shot by Club and Date'):
+        st.dataframe(medoids)
