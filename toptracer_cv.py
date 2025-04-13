@@ -5,17 +5,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
 
+# TODO current bug is due to an index matching issue since correct columns
+# and numbers are being detected. Fix and test on folder: 250413_driver
+
 
 class Toptracer:
     """
-    Takes a path to screenshots of Toptracer data and processes them
-    using template matching to extract them into a Pandas DataFrame
-    (which is stored as the attribute "df")
+    Processes screenshot images (in bytes) of Toptracer data using
+    template matching to extract metrics into a Pandas DataFrame
+    (which is stored under the "df" attribute)
     """
 
     def __init__(self, img_bytes_list):
         self.unique_indexes = []
         self.raw_indexes = []
+        self.rows = []
         self.image_files = img_bytes_list
 
         self.load_templates()
@@ -84,10 +88,14 @@ class Toptracer:
                 if value <= 0:
                     newnums.append(value)
                 elif len(str(value)) > 1:
-                    new_val = int(str(value)[1:])
+                    try:
+                        new_val = int(str(value)[1:])
+                    except ValueError as e:
+                        print(f'{e}\nValue:\t{value}')
+                        new_val = np.nan
                     newnums.append(new_val)
                 else:
-                    print(value)
+                    print(f'Else print: {value}')
             df[col] = newnums
 
         self.df = df.drop_duplicates()
@@ -109,7 +117,7 @@ class Toptracer:
                 return False
         return True
 
-    def process_image(self, image):
+    def extract_unique_indexes(self, image):
         """Find and store unique index numbers."""
         processed = self.preprocess_image(image)
         contours, _ = cv2.findContours(
@@ -123,7 +131,7 @@ class Toptracer:
                 # Normalize size for comparison
                 resized = cv2.resize(cropped, (50, 50))
 
-                if self.is_new_index(resized):  # Check if it's a new unique index
+                if self.is_new_index(resized):
                     self.unique_indexes.append((y, x, resized))
                     self.raw_indexes.append(cropped)
 
@@ -131,7 +139,7 @@ class Toptracer:
         """Loop through a list of image paths and extract unique indexes."""
         for bytes_image in self.image_files:
             gray = self._gray_img_from_bytes(bytes_image)[325:1510]
-            self.process_image(gray)
+            self.extract_unique_indexes(gray)
 
         # populate self.data with indexes
         n_indexes = len(self.unique_indexes)
@@ -174,9 +182,27 @@ class Toptracer:
         best_idx = None
         best_score = 0
         scores = []
-        for idx, template in enumerate(self.raw_indexes):
+        preprocessed = self.preprocess_image(row_idx_img)
+        contours, _ = cv2.findContours(
+            preprocessed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        # process contour areas, mostly just one but there can be a second
+        # contour due to the black bar at the bottom of some screenshots
+        contour_areas = []
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            contour_areas.append(w * h)
+        num_contour = contours[np.argmin(contour_areas)]
+        x, y, w, h = cv2.boundingRect(num_contour)
+
+        cropped = row_idx_img[y:y+h, x:x+w]  # Extract bounding box
+        # Normalize size for comparison
+        resized = cv2.resize(cropped, (50, 50))
+
+        for idx, (_, _, template) in enumerate(self.unique_indexes):
             result = cv2.matchTemplate(
-                row_idx_img, template, cv2.TM_CCOEFF_NORMED
+                resized, template, cv2.TM_CCOEFF_NORMED
             )
             score = result.max()
             scores.append(score)
@@ -248,9 +274,11 @@ class Toptracer:
             return
 
         for row_y, index_id in matches:
-            row_image = image[row_y - 2:row_y + row_height, 200:]
-            row_idx = image[row_y - 2:row_y + row_height, :200]
+            h1, h2 = row_y - 2, row_y + row_height
+            row_image = image[h1:h2, 200:]
+            row_idx = image[h1:h2, :200]
             index_match = self.find_best_matching_index(row_idx)
+            self.rows.append((row_idx, index_match, columns[0]))
             detected_nums, scores = self.match_numbers_in_row(row_image)
             nums = self.group_and_concatenate_tags(detected_nums)
 
