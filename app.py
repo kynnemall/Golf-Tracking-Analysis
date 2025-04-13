@@ -47,13 +47,13 @@ with single:
     else:
         st.text('Detected uploaded data')
         club_options = df['Club'].unique()
-        if club_options.size == 1:
-            club = club_options[0]
-            st.text(f'Only detected one club in dataset: {club}')
-        else:
-            club = st.selectbox('Select a club', club_options)
-        offline_analysis(df, top_ds, club)
-        speed_vs_launch(df, club)
+        club = st.selectbox('Select a club', club_options)
+
+        dates = df['Date'].unique()
+        date = st.selectbox('Select a Date', dates)
+        offline_analysis(df, top_ds, club, date)
+        offline_analysis(df, top_ds, club, date, side_col='Curve')
+        speed_vs_launch(df, club, date)
 
 with multi:
     if df is None:
